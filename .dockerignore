@@ -1,0 +1,17 @@
+.git
+.env
+**/.env
+**/node_modules
+**/dist
+**/__pycache__
+**/*.pyc
+**/.venv*
+**/venv
+**/.pip-cache
+**/.venv
+dip-service/.python-packages
+dip-service/pip-tmp
+dip-service/ai-runtime/bopbtl
+dip-service/ai-runtime/old-photo-scratch/FT_Epoch_latest.pt
+server/uploads
+server/outputs
