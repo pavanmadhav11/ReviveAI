@@ -2,6 +2,7 @@
 import cv2
 import numpy as np
 import logging
+import os
 from ai_scratch_detection import predict_damage_mask
 
 
@@ -53,21 +54,22 @@ def detect_scratches(image: np.ndarray, sensitivity: int = 70):
     sensitivity = int(np.clip(sensitivity, 1, 100))
     gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY) if image.ndim == 3 else image
     gray = cv2.GaussianBlur(gray, (3, 3), 0.4) if min(gray.shape) >= 3 else gray
-    try:
-        learned_mask = predict_damage_mask(image, sensitivity)
-        mask_fraction = float(np.mean(learned_mask > 0))
-        # The learned model was trained on real aged-photo damage and can
-        # overlook synthetic high-contrast test lines on nearly flat images.
-        # Keep the deterministic directional detector for that low-texture case.
-        low_texture = float(np.std(gray)) < 30.0
-        if 0.0001 < mask_fraction < 0.20 and not low_texture:
-            overlay = image.copy() if image.ndim == 3 else cv2.cvtColor(image, cv2.COLOR_GRAY2BGR)
-            overlay[learned_mask > 0] = (30, 70, 255)
-            overlay = cv2.addWeighted(image if image.ndim == 3 else cv2.cvtColor(image, cv2.COLOR_GRAY2BGR), 0.62, overlay, 0.38, 0)
-            return learned_mask, overlay
-        logging.warning("Learned scratch mask coverage %.3f or low-texture input; using classical detector", mask_fraction)
-    except Exception as exc:
-        logging.warning("Learned scratch detector unavailable; using classical detector: %s", exc)
+    if os.environ.get("REVIVEAI_DISABLE_AI_SCRATCH") != "1":
+        try:
+            learned_mask = predict_damage_mask(image, sensitivity)
+            mask_fraction = float(np.mean(learned_mask > 0))
+            # The learned model was trained on real aged-photo damage and can
+            # overlook synthetic high-contrast test lines on nearly flat images.
+            # Keep the deterministic directional detector for that low-texture case.
+            low_texture = float(np.std(gray)) < 30.0
+            if 0.0001 < mask_fraction < 0.20 and not low_texture:
+                overlay = image.copy() if image.ndim == 3 else cv2.cvtColor(image, cv2.COLOR_GRAY2BGR)
+                overlay[learned_mask > 0] = (30, 70, 255)
+                overlay = cv2.addWeighted(image if image.ndim == 3 else cv2.cvtColor(image, cv2.COLOR_GRAY2BGR), 0.62, overlay, 0.38, 0)
+                return learned_mask, overlay
+            logging.warning("Learned scratch mask coverage %.3f or low-texture input; using classical detector", mask_fraction)
+        except Exception as exc:
+            logging.warning("Learned scratch detector unavailable; using classical detector: %s", exc)
 
     responses = _directional_responses(gray)
 
