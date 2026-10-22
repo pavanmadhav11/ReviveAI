@@ -25,8 +25,10 @@ RUN python3 -m venv /opt/venv \
 ENV PATH="/opt/venv/bin:${PATH}"
 COPY dip-service/ ./dip-service/
 RUN mkdir -p dip-service/ai-runtime/old-photo-scratch \
-    && curl -fL --retry 3 "https://huggingface.co/SkylinkLabs/restore_old_image/resolve/main/FT_Epoch_latest.pt?download=true" -o dip-service/ai-runtime/old-photo-scratch/FT_Epoch_latest.pt \
-    && echo "b2d7ab04e9b3885c6b1991bb7a0b823129dd6e3ac078a9fd059ebd2a7ba59a95  dip-service/ai-runtime/old-photo-scratch/FT_Epoch_latest.pt" | sha256sum -c -
+    && curl -fL --retry 3 "https://huggingface.co/SkylinkLabs/restore_old_image/resolve/main/FT_Epoch_latest.pt?download=true" -o /tmp/FT_Epoch_latest.pt \
+    && echo "b2d7ab04e9b3885c6b1991bb7a0b823129dd6e3ac078a9fd059ebd2a7ba59a95  /tmp/FT_Epoch_latest.pt" | sha256sum -c - \
+    && python3 dip-service/prepare_scratch_weights.py /tmp/FT_Epoch_latest.pt dip-service/ai-runtime/old-photo-scratch/scratch_model.pt \
+    && rm /tmp/FT_Epoch_latest.pt
 COPY server/package*.json ./server/
 RUN cd server && npm ci --omit=dev
 COPY server/ ./server/

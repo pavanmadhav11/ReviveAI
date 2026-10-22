@@ -2,13 +2,14 @@
 from pathlib import Path
 import os
 import sys
+import gc
 
 import cv2
 import numpy as np
 
 
 _ROOT = Path(__file__).resolve().parent / "ai-runtime" / "old-photo-scratch"
-_WEIGHTS = _ROOT / "FT_Epoch_latest.pt"
+_WEIGHTS = _ROOT / "scratch_model.pt"
 _UPSTREAM = _ROOT / "upstream"
 _MODEL = None
 _TORCH = None
@@ -29,15 +30,19 @@ def _load_model():
     import torch
     from detection_models.networks import UNet
 
-    torch.set_num_threads(max(1, min(6, os.cpu_count() or 1)))
+    # This runs on small CPU-only hosts. Additional OpenMP workers increase
+    # scratch-detection memory use without improving this 256px inference.
+    torch.set_num_threads(1)
     model = UNet(in_channels=1, out_channels=1, depth=4, conv_num=2, wf=6,
                  padding=True, batch_norm=True, up_mode="upsample",
                  with_tanh=False, sync_bn=False, antialiasing=True)
-    checkpoint = torch.load(_WEIGHTS, map_location="cpu", weights_only=True)
-    state = checkpoint["model_state"]
-    if state and next(iter(state)).startswith("module."):
-        state = {key.removeprefix("module."): value for key, value in state.items()}
-    model.load_state_dict(state, strict=True)
+    state = torch.load(_WEIGHTS, map_location="cpu", weights_only=True, mmap=True)
+    # The build converts the upstream legacy checkpoint to a small zip
+    # checkpoint, which can be memory-mapped here. `assign=True` avoids copying
+    # those tensors into the randomly initialized module during model loading.
+    model.load_state_dict(state, strict=True, assign=True)
+    del state
+    gc.collect()
     model.eval()
     _MODEL, _TORCH = model, torch
     return model
